@@ -24,7 +24,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
    cors: {
-      origin: "http://localhost:5173",
+      origin: "https://occasiso.netlify.app",
       methods: ["GET", "POST"],
    },
 });
@@ -39,7 +39,7 @@ app.use(cookieParser());
 
 app.use(
   cors({
-    origin: "http://localhost:5173",
+    origin: "https://occasiso.netlify.app",
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -169,7 +169,7 @@ cloudinary.config({
 
 // // Middleware to handle CORS for image requests
 // app.use("/uploads", (req, res, next) => {
-//   res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+//   res.setHeader("Access-Control-Allow-Origin", "https://occasiso.netlify.app");
 //   res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
 //   res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
   
