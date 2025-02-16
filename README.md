@@ -2,7 +2,7 @@
 
 ## Deployed Demo
 - **Frontend**: [occasiso.netlify.app](https://occasiso.netlify.app/)
-- **Backend**: [https://occasio-r2gu.onrender.com](https://occasio-r2gu.onrender.com)
+- **Backend**: https://twooccasio.onrender.com
 
 ## Introduction: High-Level Overview
 Occasio is an event management system that allows users to discover and register for events. The platform provides features such as user authentication, ticketing with QR codes, real-time notifications, and secure payment processing via Razorpay.
