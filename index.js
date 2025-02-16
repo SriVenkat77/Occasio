@@ -24,10 +24,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
    cors: {
-      origin: "https://occasiso.netlify.app",
+      origin: ["https://occasiso.netlify.app", "http://localhost:5173"],
       methods: ["GET", "POST"],
    },
 });
+
 
 const bcryptSalt = bcrypt.genSaltSync(10); //! To encriypt the password text ---
 const jwtSecret = "bsbsfbrnsftentwnnwnwn"; //! JWT token secret code for encryption ---
@@ -36,19 +37,14 @@ const jwtSecret = "bsbsfbrnsftentwnnwnwn"; //! JWT token secret code for encrypt
 app.use(express.json());
 app.use(cookieParser());
 
-
 app.use(
   cors({
-    origin: "https://occasiso.netlify.app",
+    origin: ["https://occasiso.netlify.app", "http://localhost:5173"],
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
-
-
-
-
 
 try {
    mongoose.connect(process.env.MONGO_URL);
