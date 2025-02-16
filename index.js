@@ -15,8 +15,11 @@ const { Server } = require("socket.io");
 const multer = require("multer");
 const path = require("path");
 const nodemailer = require("nodemailer");
+const cloudinary = require("cloudinary").v2;
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 
 const app = express();
+
 
 const server = http.createServer(app);
 const io = new Server(server, {
@@ -32,12 +35,18 @@ const jwtSecret = "bsbsfbrnsftentwnnwnwn"; //! JWT token secret code for encrypt
 //! Making a connection with backend and frontend 
 app.use(express.json());
 app.use(cookieParser());
+
+
 app.use(
-   cors({
-      credentials: true,
-      origin: "http://localhost:5173",
-   })
+  cors({
+    origin: "http://localhost:5173",
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
 );
+
+
 
 
 
@@ -99,7 +108,12 @@ app.post("/login", async (req, res) => {
             return res.status(500).json({ error: "Failed to generate token" });
          }
 
-         res.cookie("token", token, { httpOnly: true }).json(userDoc);
+         res.cookie("token", token, {
+  httpOnly: true,
+  secure: true,
+  sameSite: "none",
+}).json(userDoc);
+
 
          // Emit login event
          io.emit("loginSuccess", { message: `Welcome, ${userDoc.name}!` });
@@ -109,22 +123,20 @@ app.post("/login", async (req, res) => {
 
 //! API endpoint for User profile (This is for check purposes)-----------------------------------------------
 app.get("/profile", (req, res) => {
-   const { token } = req.cookies;
-   if (token) {
-      jwt.verify(token, jwtSecret, {}, async (err, userData) => {
-         if (err) {
-            if (err.name === "TokenExpiredError") {
-               return res.status(401).json({ error: "Token expired. Please log in again." });
-            }
-            return res.status(403).json({ error: "Invalid token" });
-         }
-         const { name, email, _id } = await UserModel.findById(userData.id);
-         res.json({ name, email, _id });
-      });
-   } else {
-      res.status(401).json({ error: "No token provided" });
-   }
+  console.log("Cookies received:", req.cookies); // Debugging
+  const { token } = req.cookies;
+  if (!token) {
+    return res.status(401).json({ error: "No token provided" });
+  }
+  jwt.verify(token, jwtSecret, {}, async (err, userData) => {
+    if (err) {
+      return res.status(403).json({ error: "Invalid or expired token" });
+    }
+    const { name, email, _id } = await UserModel.findById(userData.id);
+    res.json({ name, email, _id });
+  });
 });
+
 
 
 //! Logout Functionality --------------------------------------------------------------------------
@@ -132,22 +144,38 @@ app.post("/logout", (req, res) => {
    res.cookie("token", "").json(true);
 });
 // create Event 
-// Configure storage for uploaded images
-const storage = multer.diskStorage({
-   destination: (req, file, cb) => {
-     const uploadPath = path.join(__dirname, "uploads"); // Absolute path
-     cb(null, uploadPath);
-   },
-   filename: (req, file, cb) => {
-     cb(null, `${Date.now()}${path.extname(file.originalname)}`);
+// Configure Cloudinary
+cloudinary.config({
+   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+   api_key: process.env.CLOUDINARY_API_KEY,
+   api_secret: process.env.CLOUDINARY_API_SECRET,
+ });
+ 
+ // Configure Multer to Use Cloudinary
+ const storage = new CloudinaryStorage({
+   cloudinary: cloudinary,
+   params: {
+     folder: "event_images", // Cloudinary folder
+     format: async (req, file) => "png", // Convert to PNG (optional)
+     public_id: (req, file) => `${Date.now()}-${file.originalname}`,
    },
  });
  
- 
  const upload = multer({ storage });
  
- // Serve uploaded images statically
- app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+//  // Serve uploaded images statically
+// // Middleware to serve static files from the "uploads" directory
+// app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// // Middleware to handle CORS for image requests
+// app.use("/uploads", (req, res, next) => {
+//   res.setHeader("Access-Control-Allow-Origin", "http://localhost:5173");
+//   res.setHeader("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS");
+//   res.setHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  
+//   next();
+// });
+
 
 
 const eventSchema = new mongoose.Schema({
@@ -166,17 +194,18 @@ const eventSchema = new mongoose.Schema({
 
 const Event = mongoose.model("Event", eventSchema);
 
+// Event Creation API with Cloudinary Image Upload
 app.post("/events", upload.single("image"), async (req, res) => {
    try {
      console.log("Request received:", req.body);
-     console.log("File received:", req.file);
+     console.log("File uploaded:", req.file);
  
      if (!req.file) {
        return res.status(400).json({ error: "No file uploaded" });
      }
  
      const eventData = req.body;
-     eventData.image = `/uploads/${req.file.filename}`;
+     eventData.image = req.file.path || req.file.secure_url;
  
      const existingEvent = await Event.findOne({ title: eventData.title });
      if (existingEvent) {
@@ -185,12 +214,20 @@ app.post("/events", upload.single("image"), async (req, res) => {
  
      const newEvent = new Event(eventData);
      await newEvent.save();
+ 
+     // Emit an event notification via socket.io
+     io.emit("newEvent", {
+       message: `New event "${newEvent.title}" has been created!`,
+       event: newEvent,
+     });
+ 
      res.status(201).json(newEvent);
    } catch (error) {
-     console.error("Server Error:", error);  // Log exact error
+     console.error("Server Error:", error);
      res.status(500).json({ error: "Internal Server Error", details: error.message });
    }
  });
+ 
  
 
 
@@ -199,38 +236,30 @@ app.post("/events", upload.single("image"), async (req, res) => {
 app.get("/createEvent", async (req, res) => {
    try {
      const events = await Event.find();
-     res.status(200).json(
-       events.map((event) => ({
-         ...event.toObject(),
-         image: event.image ? `http://localhost:4000${event.image}` : "", // Append base URL
-       }))
-     );
+     res.status(200).json(events);
    } catch (error) {
+     console.error("Error fetching events:", error);
      res.status(500).json({ error: "Failed to fetch events from MongoDB" });
    }
  });
+
  
 
 //! API endpoint to fetch event by id for Event page ---------------------------------------
 app.get("/event/:id", async (req, res) => {
    const { id } = req.params;
    try {
-      const event = await Event.findById(id);
-      if (!event) {
-         return res.status(404).json({ error: "Event not found" });
-      }
-      
-      // Ensure the image has the correct full URL
-      const eventWithFullImageURL = {
-         ...event.toObject(),
-         image: event.image ? `http://localhost:4000${event.image}` : "",
-      };
-
-      res.json(eventWithFullImageURL);
+     const event = await Event.findById(id);
+     if (!event) {
+       return res.status(404).json({ error: "Event not found" });
+     }
+ 
+     res.json(event);
    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch event from MongoDB" });
+     console.error("Error fetching event:", error);
+     res.status(500).json({ error: "Failed to fetch event from MongoDB" });
    }
-});
+ });
 
 
 //! API endpoint to adding and fetch likes ---------------------------------------------------
@@ -256,26 +285,26 @@ app.post("/event/:eventId", (req, res) => {
 });
 
 //! Add a comment to an event (NOT IN USE) ------------------------------------------
-app.post("/event/:eventId", (req, res) => {
-   const eventId = req.params.eventId;
-   const comment = req.body.comment;
+// app.post("/event/:eventId", (req, res) => {
+//    const eventId = req.params.eventId;
+//    const comment = req.body.comment;
 
-   Event.findById(eventId)
-      .then((event) => {
-         if (!event) {
-            return res.status(404).json({ message: "Event not found" });
-         }
-         event.comments.push(comment);
-         return event.save();
-      })
-      .then((updatedEvent) => {
-         res.json(updatedEvent);
-      })
-      .catch((error) => {
-         console.error("Error adding comment:", error);
-         res.status(500).json({ message: "Server error" });
-      });
-});
+//    Event.findById(eventId)
+//       .then((event) => {
+//          if (!event) {
+//             return res.status(404).json({ message: "Event not found" });
+//          }
+//          event.comments.push(comment);
+//          return event.save();
+//       })
+//       .then((updatedEvent) => {
+//          res.json(updatedEvent);
+//       })
+//       .catch((error) => {
+//          console.error("Error adding comment:", error);
+//          res.status(500).json({ message: "Server error" });
+//       });
+// });
 
 //! API endpoint to fetch event by id to calendar ------------------------------------------------------
 app.get("/events", (req, res) => {
@@ -427,12 +456,17 @@ app.get('/tickets/:id', async (req, res) => {
    try {
      const ticketId = req.params.id;
      await Ticket.findByIdAndDelete(ticketId);
+ 
+     // Emit event to notify all connected clients
+     io.emit("ticketDeleted", { message: `Ticket ID ${ticketId} has been deleted.` });
+ 
      res.status(204).send(); 
    } catch (error) {
      console.error('Error deleting ticket:', error);
      res.status(500).json({ error: 'Failed to delete ticket' });
    }
  });
+ 
 
  //! Admin Route to Fetch All Events
  app.get("/admin/events", async (req, res) => {
@@ -474,20 +508,23 @@ app.put("/admin/event/:id", upload.single("image"), async (req, res) => {
  });
  
 
-app.delete("/admin/event/:id", async (req, res) => {
+ app.delete("/admin/event/:id", async (req, res) => {
    try {
-      const { id } = req.params;
-
-      const deletedEvent = await Event.findByIdAndDelete(id);
-      if (!deletedEvent) {
-         return res.status(404).json({ error: "Event not found" });
-      }
-
-      res.json({ message: "Event deleted successfully" });
+     const { id } = req.params;
+ 
+     const deletedEvent = await Event.findByIdAndDelete(id);
+     if (!deletedEvent) {
+       return res.status(404).json({ error: "Event not found" });
+     }
+ 
+     // Emit a Socket.io event to notify all clients
+     io.emit("eventDeleted", { message: "Event deleted successfully", eventId: id });
+ 
+     res.json({ message: "Event deleted successfully" });
    } catch (error) {
-      res.status(500).json({ error: "Failed to delete event" });
+     res.status(500).json({ error: "Failed to delete event" });
    }
-});
+ });
 
 
 //! Admin Route to Fetch All Tickets
