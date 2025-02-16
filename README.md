@@ -1,7 +1,7 @@
 Occasio : Event Management System
 Deployed Demo
-	• Frontend: https://0ccasio.netlify.app
-	• Backend: https://occasio-r2gu.onrender.com
+	• Frontend: occasiso.netlify.app
+	• Backend: [https://occasio-r2gu.onrender.com](https://twooccasio.onrender.com)
 Introduction: High-Level Overview
 
 Objective: The goal of this project is to provide a platform for users to discover, create, manage, and register for events. The system includes features like user authentication, event creation, ticketing with QR codes, and payment integration via Razorpay.
