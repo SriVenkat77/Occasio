@@ -1,6 +1,6 @@
 Occasio : Event Management System
 Deployed Demo
-	• Frontend: occasiso.netlify.app
+	• Frontend: [occasiso.netlify.app](https://occasiso.netlify.app/)
 	• Backend: [https://occasio-r2gu.onrender.com](https://twooccasio.onrender.com)
 Introduction: High-Level Overview
 
