@@ -8,7 +8,7 @@ import 'react-toastify/dist/ReactToastify.css';
 
 
 // Connect to backend socket
-const socket = io('https://ocasio.onrender.com');
+const socket = io('https://twooccasio.onrender.com');
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
