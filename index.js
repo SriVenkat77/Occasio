@@ -23,15 +23,17 @@ const app = express();
 
 const server = http.createServer(app);
 const io = new Server(server, {
-   cors: {
-      origin: ["https://occasiso.netlify.app", "http://localhost:5173"],
-      methods: ["GET", "POST"],
-   },
+  cors: {
+    origin: ["https://occasiso.netlify.app", "http://localhost:5173"],
+    methods: ["GET", "POST"],
+    credentials: true,  
+  },
 });
 
 
-const bcryptSalt = bcrypt.genSaltSync(10); //! To encriypt the password text ---
-const jwtSecret = "bsbsfbrnsftentwnnwnwn"; //! JWT token secret code for encryption ---
+
+const bcryptSalt = bcrypt.genSaltSync(10); 
+const jwtSecret = "bsbsfbrnsftentwnnwnwn"; 
 
 //! Making a connection with backend and frontend 
 app.use(express.json());
